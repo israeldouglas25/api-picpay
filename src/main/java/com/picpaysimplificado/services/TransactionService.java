@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
@@ -25,14 +26,18 @@ public class TransactionService {
     @Autowired
     private RestTemplate restTemplate;
 
-    public void createTransaction(TransactionDTO transaction) throws Exception {
-        User sender = userService.findUserById(transaction.senderId());
-        User receiver = userService.findUserById(transaction.receiverId());
+    @Autowired
+    private NotificationService notificationService;
+
+    @Transactional
+    public Transaction createTransaction(TransactionDTO transaction) throws Exception {
+        User sender = userService.getUserById(transaction.senderId());
+        User receiver = userService.getUserById(transaction.receiverId());
 
         userService.validateTransaction(sender, transaction.value());
 
         boolean isAuthorized = this.authorizeTransaction(sender, transaction.value());
-        if (!isAuthorized){
+        if (isAuthorized){
             throw new Exception("Transação não autorizada!");
         }
 
@@ -49,11 +54,15 @@ public class TransactionService {
         this.userService.saveUser(sender);
         this.userService.saveUser(receiver);
 
+        this.notificationService.sendNotification(sender, "Transação realizada com sucesso");
+        this.notificationService.sendNotification(receiver, "Transação recebida com sucesso");
+
+        return newTransaction;
     }
 
     public boolean authorizeTransaction(User sender, BigDecimal value){
 
-        ResponseEntity<Map> authorizationResponse = restTemplate.getForEntity("https://run.mocky.io/v3/8fafdd68-a090-496f-8c9a-3442cf30dae6", Map.class);
+        ResponseEntity<Map> authorizationResponse = restTemplate.getForEntity("https://run.mocky.io/v3/9b89b419-a2f7-4885-aa86-5ddcea24d520", Map.class);
 
         return authorizationResponse.getStatusCode() == HttpStatus.OK && authorizationResponse.getBody().get("message") == "Autorizado";
     }
